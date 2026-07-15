@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "pynapple-skills",
+  "owner": {
+    "name": "pynapple-org",
+    "email": "guillaume.viejo@gmail.com"
+  },
+  "metadata": {
+    "description": "Claude Code skills for the pynapple neurophysiology analysis package.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "using-pynapple",
+      "description": "Analyze neurophysiology time series using the pynapple Python package. Covers core data structures, time series manipulation, metadata filtering, tuning curves, decoding, and signal processing.",
+      "source": "./",
+      "version": "0.1.0",
+      "strict": false,
+      "skills": [
+        "./using-pynapple"
+      ]
+    }
+  ]
+}
