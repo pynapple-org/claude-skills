@@ -96,15 +96,35 @@ nwbfile = io.read()
 nwb = nap.NWBFile(nwbfile)
 print(nwb)
 
-# 4. Access and analyze
-spikes = nwb["units"]
-position = nwb["position"]
+# 4. Discover the right keys instead of hardcoding names like "position" or
+# "epochs" -- these vary by dataset (e.g. a spatial variable may be called
+# "position", "SpatialSeriesLED1", etc.). nwb.items() exposes a key -> type
+# mapping ("TsGroup", "Tsd", "TsdFrame", "IntervalSet", ...) without
+# triggering a full load, so filter on type rather than assuming a name.
+key_types = {k: (v["type"] if isinstance(v, dict) else type(v).__name__) for k, v in nwb.items()}
 
-wake_ep = nwb["epochs"]["wake"]
+spikes = nwb["units"]
+
+spatial_keys = [k for k, t in key_types.items() if t in ("Tsd", "TsdFrame") and k != "units"]
+position_key = next(
+    (k for k in spatial_keys if any(w in k.lower() for w in ("position", "spatial", "led"))),
+    spatial_keys[0],
+)
+position = nwb[position_key]
+
+# Not every dataset has an epochs/intervals table -- fall back to the full
+# recording span when one isn't present.
+epoch_keys = [k for k, t in key_types.items() if t == "IntervalSet"]
+if epoch_keys:
+    epochs = nwb[epoch_keys[0]]
+    wake_ep = epochs["wake"] if hasattr(epochs, "keys") and "wake" in epochs.keys() else epochs
+else:
+    wake_ep = position.time_support
+
 spikes_wake = spikes.restrict(wake_ep)
 position_wake = position.restrict(wake_ep)
 
-tc = nap.compute_tuning_curves(spikes_wake, position_wake, nb_bins=50)
+tc = nap.compute_tuning_curves(spikes_wake, position_wake, bins=50)
 ```
 
 ## Listing All NWB Files in a Dandiset
