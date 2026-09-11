@@ -153,6 +153,28 @@ events = nap.detect_oscillatory_events(
 # Returns: IntervalSet of detected events
 ```
 
+## Peak Detection
+
+Find discrete peak events in a `Tsd` (e.g. turn-onset detection from an angular-velocity
+trace). Wraps `scipy.signal.find_peaks` -- same keyword arguments (`height`, `distance`,
+`prominence`, etc.) -- but takes a `Tsd` and returns pynapple objects with real timestamps
+instead of integer sample indices.
+
+```python
+peaks = tsd.find_peaks(height=thr)
+# Returns: Tsd of peak times -> values (same units as tsd)
+
+peaks_with_props = tsd.find_peaks(height=thr, return_prop=True)
+# Returns: TsdFrame, one row per peak -- "peak_value" (the signal's value at the peak)
+# plus "peak_heights" (and any other scipy peak property requested, e.g. "prominences")
+
+# find troughs (negative peaks) by flipping the sign first
+troughs = (tsd * -1).find_peaks(height=thr)
+
+# restrict peak search to specific epochs
+peaks = tsd.find_peaks(height=thr, epochs=wake_ep)
+```
+
 ## Perievent Analysis
 
 Align data to reference events (e.g., stimulus onsets, spike times).

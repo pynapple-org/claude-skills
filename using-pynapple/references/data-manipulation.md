@@ -175,6 +175,27 @@ clean = tsd.dropna()
 clean = tsd.dropna(update_time_support=False)
 ```
 
+## nan_to_num() - Replace NaN Values
+
+Unlike `dropna()`, keeps every timestamp and just replaces NaN (and optionally +/-inf)
+values in place of removing rows. Not a method pynapple defines itself -- `Tsd`/`TsdFrame`
+forward unknown attribute names straight to the matching numpy function
+(`np_func(self, *args, **kwargs)`), so this is really `np.nan_to_num(tsd, ...)`.
+
+```python
+clean = tsd.nan_to_num(nan=0.0)
+```
+
+**Always pass `nan=` as a keyword.** `np.nan_to_num`'s real signature is
+`(x, copy=True, nan=0.0, posinf=None, neginf=None)` -- a bare positional argument
+(`tsd.nan_to_num(0.0)`) lands on `copy`, not `nan`. With a falsy `copy` value this can
+silently **mutate the original object in place**, breaking pynapple's own immutability
+guarantee (the replacement value happens to still look right whenever it coincides with
+the default `nan=0.0`, which is easy to not notice). This same trap applies to any other
+numpy function reached this way (`tsd.<numpy_function_name>(...)`) -- check the numpy
+function's real positional signature before passing positional args, or just always use
+keywords for anything past the array itself.
+
 ## decimate() - Downsample with Anti-Aliasing
 
 Downsample with anti-aliasing filter.
