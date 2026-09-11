@@ -118,9 +118,43 @@ before = ts.value_from(tsd, mode='before')     # value just before
 after = ts.value_from(tsd, mode='after')       # value just after
 ```
 
+**Queries outside the signal's `time_support` are silently dropped, not NaN.**
+`value_from` only returns a result for query timestamps that fall within the *signal*
+argument's (the one passed in, not the one you call it on) own `time_support` -- which,
+for a signal you built yourself with e.g. `nap.Tsd(t=arr, d=arr)`, defaults to
+`[arr.min(), arr.max()]`. A query before the first sample or after the last one just
+doesn't appear in the output (the output is shorter than the input) rather than raising
+or coming back NaN -- easy to miss. If every query should be evaluated regardless of
+where the signal's own data starts/stops, give it the full epoch as `time_support`:
+
+```python
+# silently drops any ufo_ts before turns.t.min() or after turns.t.max()
+target = nap.Tsd(t=turns.t, d=turns.t)
+result = ufo_ts.value_from(target, mode='after')
+
+# evaluates every ufo_ts in wake_ep, regardless of where turns happen to start/end
+target = nap.Tsd(t=turns.t, d=turns.t, time_support=wake_ep)
+result = ufo_ts.value_from(target, mode='after')
+```
+
+**One query maps to at most one result -- never one-to-many.** Each query timestamp is
+matched to exactly one sample of the signal (the closest/before/after one). That's fine
+for "what is this event's nearest X" (e.g., using the trick above, "each UFO's next
+turn"), but it can't express "this one signal sample is relevant to several query
+events." Concretely: if you want every turn that has *some* event in a preceding window,
+and turns can be closer together than that window, `value_from(mode='after')` only ever
+credits one turn per event (its immediate next one) -- any other turn within the same
+event's window, that isn't literally the next turn after it, is silently missed. For a
+genuinely many-to-one relationship like that, match in the other direction instead (one
+query per turn, checking for any qualifying event in its window -- e.g. with
+`np.searchsorted` on the event timestamps), not via a single `value_from` call.
+
 ## get() - Slice by Time
 
-Get data in a time range without changing time_support.
+Get data in a time range without changing time_support. Prefer this over
+`data.restrict(nap.IntervalSet(start, end))` for a one-off static slice -- same result,
+no `IntervalSet` to construct, and it doesn't touch `time_support` the way `restrict()`
+does.
 
 ```python
 # Get data between 50 and 100 seconds
@@ -131,6 +165,10 @@ point = tsd.get(50.1)
 
 # Quick visualization of first 100 seconds
 plt.plot(transients[:, 0:2].get(0, 100))
+
+# e.g. pull the pre-event slice out of a compute_perievent() result -- its relative-time
+# axis (negative = before the event) works with get() exactly like any other time axis
+pre_event = perievent.get(-0.2, 0)
 ```
 
 ## threshold() - Find Epochs Above/Below Value
