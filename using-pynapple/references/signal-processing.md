@@ -177,30 +177,53 @@ peaks = tsd.find_peaks(height=thr, epochs=wake_ep)
 
 ## Perievent Analysis
 
-Align data to reference events (e.g., stimulus onsets, spike times).
-
-### Perievent Timestamps
+Align data to reference events (e.g., stimulus onsets, spike times). One function,
+`compute_perievent`, dispatches automatically on `data`'s type -- there is no separate
+"continuous" variant to call (an older API had `timestamps=`/`tref=`/`minmax=` and a
+distinct `compute_perievent_continuous`; neither exists anymore -- check installed
+version if code you're reading uses those names, it will raise `TypeError`).
 
 ```python
-# Align spikes to stimulus onsets
 perievent = nap.compute_perievent(
-    timestamps=spikes,              # Ts/Tsd/TsGroup
-    tref=stimulus_onsets,           # Ts/Tsd (reference events)
-    minmax=(-1, 2),                 # (pre_event, post_event) in seconds
+    data,                    # Ts, Tsd, TsdFrame, TsdTensor, or TsGroup -- what to align
+    events,                   # Ts, Tsd, TsdFrame, or TsdTensor -- events to align to
+    window,                    # float (symmetric, e.g. 1.0 -> +/-1s) or (before, after)
+                                # tuple, e.g. (-1, 2)
+    time_unit='s',               # units of `window` ('s', 'ms', 'us')
+    epochs=None,                   # restrict to these epochs; default: data.time_support
 )
-# For TsGroup input: returns dict of TsGroup (one per neuron)
-# For Ts input: returns TsGroup (one per reference event)
 ```
 
-### Perievent Continuous
+`events` accepts any existing pynapple time series directly (only its timestamps are
+used) -- no need to wrap it in `nap.Ts(t=...)` first:
 
 ```python
-# Align LFP to events
-perievent = nap.compute_perievent_continuous(
-    timeseries=lfp,                 # Tsd/TsdFrame/TsdTensor
-    tref=event_times,               # Ts/Tsd
-    minmax=(-0.5, 1.0),             # window around events
-)
+# turns is already a Tsd (e.g. from find_peaks) -- pass it as-is
+perievent = nap.compute_perievent(pop_rate, turns, window=1.0)
+```
+
+Dispatch by `data`'s type:
+- **discrete**, a single `Ts`: returns a `TsGroup`, one element per event
+- **discrete**, a `TsGroup`: returns a dict of `TsGroup`, one per unit
+- **continuous**, `Tsd`/`TsdFrame`/`TsdTensor` (must be regularly sampled): returns one
+  `TsdFrame`/`TsdTensor` with one column/slice per event and a shared relative-time index
+
+**For continuous data, the output's relative-time axis is not a fixed function of
+`window` and the data's bin size -- read it fresh from the result each time, don't
+precompute an expected length.** The normal case is per-event NaN-padding: an event
+whose window partially runs past available data gets NaN for the missing part, and every
+other event keeps its full window. But if this can't be resolved for the batch as a
+whole, the entire *shared* axis for that call can come back shrunk (fewer points,
+narrower range) instead -- observed in practice when an event in a batch sits closer than
+`window` to the edge of its epoch's `time_support`. This can vary from one call to the
+next (e.g. one call per session, or per brain state) even with identical `window`/bin
+size, because it depends on how close events happen to sit to an epoch edge in that
+particular batch.
+
+```python
+# don't assume this always holds -- it can legitimately fail for some calls:
+n_expected = int(round(2 * window / bin_size)) + 1
+assert perievent.t.shape[0] == n_expected
 ```
 
 ### Event-Triggered Average
