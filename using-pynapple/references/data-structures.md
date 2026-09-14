@@ -47,6 +47,25 @@ tsd + 1            # arithmetic returns Tsd
 tsd[tsd > 0]       # boolean indexing
 ```
 
+**NumPy dispatch works for a pynapple object combined with a plain scalar/array, but not for
+two pynapple objects together** -- even a `Tsd`/`TsdFrame` with another `Tsd`/`TsdFrame` that
+has the exact same timestamps (e.g. two reductions computed from the same perievent call).
+`__array_ufunc__` returns `NotImplemented` for that case rather than aligning them, so it
+raises instead of silently producing a wrong result -- but it's easy to hit by accident when
+chaining reductions of the same pynapple object:
+
+```python
+cos_m = np.nanmean(np.cos(perievent), axis=1)   # Tsd (numpy dispatch collapses the column axis)
+sin_m = np.nanmean(np.sin(perievent), axis=1)   # Tsd, same timestamps as cos_m
+
+cos_m ** 2 + sin_m ** 2
+# TypeError: operand type(s) all returned NotImplemented from __array_ufunc__(<ufunc 'add'>, ...): 'Tsd', 'Tsd'
+
+# fix: drop to .values for the combining step (still fine to wrap the result back in a
+# Tsd afterwards using either side's timestamps, since they're the same)
+R = np.sqrt(cos_m.values ** 2 + sin_m.values ** 2)
+```
+
 ## TsdFrame (Time Series Data - 2D)
 
 2D time series with labeled columns (e.g., multi-neuron calcium imaging, multi-channel LFP).
