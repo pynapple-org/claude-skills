@@ -226,6 +226,32 @@ n_expected = int(round(2 * window / bin_size)) + 1
 assert perievent.t.shape[0] == n_expected
 ```
 
+### Aggregating Perievent Traces Across Many Calls
+
+A common pattern is one `compute_perievent` call per session (or per unit, per condition,
+...), each producing its own mean trace, followed by averaging those traces together for a
+population-level plot. It's tempting to track the lag axis in a variable set once outside
+the loop (`if trace_t is None: trace_t = perievent.t`) and keep the per-call means as plain
+arrays -- but since `plt.plot(tsd)` plots a `Tsd`'s data against its own timestamps directly
+(no separate `plt.plot(x, y)` needed), it's simpler to wrap each call's mean trace in a `Tsd`
+using that call's own `perievent.t`, and skip tracking the axis separately:
+
+```python
+traces = []
+for session_data in all_sessions:
+    perievent = nap.compute_perievent(pop_rate, events, window=1.0)
+    traces.append(nap.Tsd(t=perievent.t, d=np.nanmean(perievent, axis=1).values))
+
+# average across sessions -- reuse the first trace's timestamps for the pooled Tsd
+# (compute_perievent uses the same window/bin_size every call here, so they match)
+values = np.array([tr.values for tr in traces])
+mean_trace = nap.Tsd(t=traces[0].t, d=values.mean(0))
+sem = values.std(0) / np.sqrt(len(traces))
+
+plt.plot(mean_trace)
+plt.fill_between(mean_trace.t, mean_trace.values - sem, mean_trace.values + sem, alpha=0.2)
+```
+
 ### Event-Triggered Average
 
 ```python
