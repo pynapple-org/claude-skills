@@ -95,6 +95,33 @@ speed = np.abs(position.derivative())
 velocity = position.derivative(ep=forward_ep)
 ```
 
+## time_diff() - Differences Between Subsequent Timestamps
+
+Computes the interval between each timestamp and the next, on any `Ts`/`Tsd`/`TsdFrame`/
+`TsdTensor`/`TsGroup`. Prefer this over `np.diff(ts.t)` -- unlike a raw `np.diff`, it never
+differences across a gap between two disjoint intervals in `time_support`, so it can't
+silently produce one bogus giant "interval" spanning the gap if the object's `time_support`
+ever turns out to have more than one row (e.g. after `restrict()` to a multi-row `IntervalSet`,
+or building a `Ts` from timestamps pooled across more than one recording epoch).
+
+```python
+isi = spikes[0].time_diff()  # Tsd of inter-spike intervals
+
+# align="start"/"center" (default)/"end" controls where each difference is timestamped
+ici = ttl.time_diff(align="start")
+
+# restrict the differencing to specific epochs instead of the object's own time_support
+isi_wake = spikes[0].time_diff(epochs=wake_ep)
+```
+
+**Silent-bug shape this avoids:** given `ts` whose `time_support` is two separate epochs (say
+`[0, 10]` and `[100, 110]`), `np.diff(ts.t)` computes a difference between the last timestamp
+of the first epoch and the first timestamp of the second (~90, meaningless) as if they were
+adjacent. `ts.time_diff()` instead differences only within each `time_support` row, so that
+epoch boundary never produces a spurious interval. Worth defaulting to `time_diff()` any time
+the object isn't guaranteed (by construction, not just "usually true today") to have a
+single-row `time_support`.
+
 ## value_from() - Assign Values at Spike Times
 
 Find the value of a continuous signal at each event timestamp.
