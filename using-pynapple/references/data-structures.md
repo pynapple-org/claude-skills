@@ -116,6 +116,8 @@ tsdframe[:, 0:3]              # slice columns -> TsdFrame
 tsdframe.loc["neuron_0"]       # by column name
 tsdframe.loc[["neuron_0", "neuron_1"]]  # multiple columns
 tsdframe[:, tsdframe.region == "M1"]    # filter by metadata
+tsdframe.depth = [10, 20, 10]           # attach a new column via direct attribute
+                                         # assignment -- same as tsdframe.set_info(depth=...)
 
 # Properties
 tsdframe.columns       # column labels
@@ -183,6 +185,12 @@ plt.plot(raster, "|")
 tsgroup.location          # metadata column as array
 tsgroup["location"]       # same
 tsgroup.set_info(pref_ang=preferred_angles)
+
+# direct attribute assignment works too, and is equivalent to set_info() -- no need to
+# build a filter mask by hand (e.g. looping per-row against a dict of per-category
+# thresholds) when you can attach the computed column and then boolean-index on it directly
+tsgroup.SI = spatial_info               # same effect as tsgroup.set_info(SI=spatial_info)
+tsgroup = tsgroup[tsgroup.SI > 0.2]     # filter using the newly attached column
 ```
 
 ## IntervalSet (Time Intervals / Epochs)
@@ -233,6 +241,8 @@ ep.split(interval_size=1.0)   # split into 1-second intervals
 ep.tags                        # metadata column "tags" if exists
 ep[ep.tags == "wake"]          # filter by metadata
 ep.set_info(condition=["A", "B"])
+ep.condition = ["A", "B"]      # same as set_info() -- direct attribute assignment works
+                                # here too, same as on TsGroup/TsdFrame
 ```
 
 ## Converting Between Types
