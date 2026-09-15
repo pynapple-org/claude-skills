@@ -91,8 +91,16 @@ decoded, prob = nap.decode_bayes(
 3. **NumPy compatibility**: Pynapple objects work with numpy functions directly:
    `np.mean(tsd)`, `np.abs(tsd)`, `tsd + 1`, etc.
 
-4. **Pynapple preserves time**: When you pass pynapple objects to functions,
-   outputs maintain timestamps and time_support.
+4. **Pynapple preserves time -- trust the object an operation gives you back, don't
+   rebuild it.** Methods, numpy ufuncs, and reductions on a pynapple object already
+   return a correctly-time-stamped pynapple object (right `t`/`time_support`/`rate`) --
+   this applies just as much to a plain method call (`tsdframe.mean(1)`,
+   `tsdframe[:, cols].mean(1)`) as to the numpy-dispatch cases below. Manually
+   reconstructing one from `.values`/`.t` afterwards (`nap.Tsd(t=x.t, d=x.mean(1).values,
+   time_support=x.time_support)` instead of just `x.mean(1)`) is never necessary and is
+   a recurring mistake worth specifically checking for -- if a pynapple operation already
+   produced the object you want, use its result directly instead of pulling `.values`/`.t`
+   back out and rebuilding.
 
 5. **Units in seconds**: All times are in seconds internally. Use `time_units`
    parameter for input in 'ms' or 'us'.

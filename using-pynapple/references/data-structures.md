@@ -47,6 +47,43 @@ tsd + 1            # arithmetic returns Tsd
 tsd[tsd > 0]       # boolean indexing
 ```
 
+**Don't manually rebuild the `Tsd`/`TsdFrame` a pynapple operation already gives you back.**
+A reduction like `.mean(axis)` on a `TsdFrame` already returns a properly time-stamped `Tsd`
+(right `t`, `time_support`, `rate`) -- there's a recurring habit of pulling `.values` back out
+and reconstructing one by hand instead of just using the result directly:
+
+```python
+# unnecessary -- rebuilds a Tsd that .mean(1) already returned
+lfp = nap.Tsd(t=eeg.t, d=eeg[:, channels].values.mean(1), time_support=eeg.time_support)
+
+# eeg[:, channels] is a TsdFrame; .mean(1) is a pynapple method, not bare numpy --
+# it already returns a Tsd with the right t/time_support
+lfp = eeg[:, channels].mean(1)
+```
+Same applies to numpy ufuncs called on a single pynapple object (`np.cos(tsd)`, `np.abs(tsd)`,
+etc. -- see below) and to methods like `.smooth()`/`.bin_average()`/`.restrict()`: if a
+pynapple operation already produced the object you want, use its result directly instead of
+extracting `.values`/`.t` and passing them back into a fresh `nap.Tsd(...)` constructor.
+
+**NumPy dispatch works for a pynapple object combined with a plain scalar/array, but not for
+two pynapple objects together** -- even a `Tsd`/`TsdFrame` with another `Tsd`/`TsdFrame` that
+has the exact same timestamps (e.g. two reductions computed from the same perievent call).
+`__array_ufunc__` returns `NotImplemented` for that case rather than aligning them, so it
+raises instead of silently producing a wrong result -- but it's easy to hit by accident when
+chaining reductions of the same pynapple object:
+
+```python
+cos_m = np.nanmean(np.cos(perievent), axis=1)   # Tsd (numpy dispatch collapses the column axis)
+sin_m = np.nanmean(np.sin(perievent), axis=1)   # Tsd, same timestamps as cos_m
+
+cos_m ** 2 + sin_m ** 2
+# TypeError: operand type(s) all returned NotImplemented from __array_ufunc__(<ufunc 'add'>, ...): 'Tsd', 'Tsd'
+
+# fix: drop to .values for the combining step (still fine to wrap the result back in a
+# Tsd afterwards using either side's timestamps, since they're the same)
+R = np.sqrt(cos_m.values ** 2 + sin_m.values ** 2)
+```
+
 ## TsdFrame (Time Series Data - 2D)
 
 2D time series with labeled columns (e.g., multi-neuron calcium imaging, multi-channel LFP).
