@@ -139,19 +139,44 @@ theta_phase = nap.Tsd(
 
 ## Oscillatory Event Detection
 
-Detect oscillatory bursts (e.g., spindles, sharp-wave ripples):
+Detect oscillatory bursts (e.g., sharp-wave ripples, spindles). Also reachable as
+`nap.process.signal.detect_oscillatory_events` -- `nap.detect_oscillatory_events` is the
+same function. Internally: bandpass filter -> Hilbert envelope -> smooth -> z-score ->
+threshold -> duration filtering -> merge close events -> extract per-event peak.
 
 ```python
 events = nap.detect_oscillatory_events(
-    signal,
-    fs=1250,
-    cutoff=(100, 250),           # frequency band (e.g., ripple band)
-    duration=(0.01, 1.0),        # min/max event duration (seconds)
-    min_abs_power=None,          # absolute power threshold
-    percentile=99                # adaptive threshold percentile
+    data,                       # Tsd -- single-channel raw signal (not multi-channel)
+    epochs,                      # IntervalSet -- restrict detection to these epochs
+    frequency_band,                # (low, high) tuple, Hz, e.g. (100, 250) for ripples
+    threshold_band,                  # (low, high) tuple -- z-scored envelope thresholds
+    duration_band,                     # (min, max) tuple -- event duration, seconds
+    min_interval,                        # merge events closer than this apart, seconds
+    fs=None,                                # sampling rate; inferred from data.rate if omitted
+    sliding_window_size=51,                    # smoothing window size, in samples
 )
-# Returns: IntervalSet of detected events
 ```
+
+Returns a single `IntervalSet` (not a tuple) -- event start/end as the interval bounds, with
+per-event **metadata already attached**: `power` (dB), `amplitude`, `peak_time`.
+
+```python
+ripples = nap.detect_oscillatory_events(
+    lfp, sleep_ep, frequency_band=(100, 250), threshold_band=(1, 10),
+    duration_band=(0.02, 0.2), min_interval=0.02,
+)
+peak_times = nap.Ts(ripples.peak_time.values)   # metadata column -> a Ts of each event's peak
+strongest = ripples[ripples.amplitude > ripples.amplitude.quantile(0.9)]
+```
+
+**`data` must be single-channel.** For a multi-channel region/shank, reduce to one
+representative trace first (e.g. average across non-noise channels) -- the function raises
+`TypeError` on a `TsdFrame`.
+
+**Metadata columns aren't touched by `as_units()`.** `some_interval_set.as_units("ms")` only
+converts the `start`/`end` index, not attached metadata like `peak_time` -- convert those by
+hand (`* 1000`) if you need everything in the same unit, e.g. writing a peak/start/stop event
+file.
 
 ## Peak Detection
 
