@@ -336,12 +336,23 @@ ec = nap.compute_eventcorrelogram(
 
 ```python
 isi = nap.compute_isi_distribution(
-    tsgroup,
-    binsize=0.001,
-    windowsize=0.1,
-    ep=wake_ep
+    data,                # Ts, TsGroup, Tsd, TsdFrame, or TsdTensor
+    bins=10,              # int (equal-width bin count) or an explicit array of bin edges
+    log_scale=False,      # if True, ISIs are log10-transformed before binning
+    epochs=wake_ep,        # NOTE: `epochs`, not `ep` like the correlogram functions above
 )
+# Returns a DataFrame: index = bin centers, one column per TsGroup key (or a single
+# column for a bare Ts/Tsd)
 ```
+
+**Use this instead of `np.diff(ts.t)` for interspike/inter-event intervals whenever the
+data's time support has more than one interval** (e.g. a multi-bout sleep epoch, or any
+`ep=`/`epochs=` restriction that isn't one contiguous block). `np.diff` on the raw
+concatenated timestamps silently bridges across gaps between disjoint sub-intervals --
+e.g. the last event before a gap and the first event after it register as one huge,
+spurious interval. `compute_isi_distribution` takes `epochs` directly and only
+diffs within each contiguous sub-interval, so it's time-support accurate; plain
+`np.diff` is not.
 
 ## Randomization / Bootstrapping
 
