@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "using-pynapple",
+  "description": "Analyze neurophysiology time series using the pynapple Python package. Covers core data structures, time series manipulation, metadata filtering, tuning curves, decoding, and signal processing.",
+  "version": "0.1.0",
+  "author": {
+    "name": "pynapple-org",
+    "email": "guillaume.viejo@gmail.com"
+  },
+  "homepage": "https://github.com/pynapple-org/claude-skills",
+  "repository": "https://github.com/pynapple-org/claude-skills",
+  "license": "MIT",
+  "keywords": [
+    "pynapple",
+    "neurophysiology",
+    "neuroscience",
+    "time-series",
+    "spike-trains"
+  ]
+}
