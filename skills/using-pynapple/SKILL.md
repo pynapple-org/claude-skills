@@ -100,7 +100,10 @@ decoded, prob = nap.decode_bayes(
    time_support=x.time_support)` instead of just `x.mean(1)`) is never necessary and is
    a recurring mistake worth specifically checking for -- if a pynapple operation already
    produced the object you want, use its result directly instead of pulling `.values`/`.t`
-   back out and rebuilding.
+   back out and rebuilding. This includes filtering by a boolean/integer mask: `ts[mask]`
+   /`tsd[mask]` already returns the same pynapple type with `t`/`d`/`time_support` filtered
+   correctly -- not `nap.Ts(t=ts.t[mask])`. See `references/data-manipulation.md`'s
+   "Boolean / integer indexing" section.
 
 5. **Units in seconds**: All times are in seconds internally. Use `time_units`
    parameter for input in 'ms' or 'us'.

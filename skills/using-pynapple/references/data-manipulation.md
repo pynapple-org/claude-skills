@@ -17,6 +17,30 @@ position_run = position.restrict(forward_ep)
 spikes_adn_wake = spikes[spikes.location == "adn"].restrict(wake_ep)
 ```
 
+## Boolean / integer indexing - Filter by a Condition
+
+`Ts`, `Tsd`, `TsdFrame`, and `TsdTensor` all support direct numpy-style indexing with a boolean
+mask or integer array along the time axis, just like a numpy array. The result is the same
+pynapple type, with `t` (and `d` for `Tsd`/`TsdFrame`/`TsdTensor`) already filtered and
+`time_support` recomputed correctly — there's no need to manually pull out `.t`/`.values`,
+mask them, and reconstruct a fresh object.
+
+```python
+# Keep only UFOs whose power exceeds some per-event threshold
+mask = ufo_power.values >= 7          # boolean array, one entry per timestamp
+strong_ufos = ufo_ts[mask]            # Ts -- NOT nap.Ts(t=ufo_ts.t[mask])
+
+# Same pattern on a Tsd -- values are filtered too
+strong_power = ufo_power[mask]        # Tsd
+
+# Works with any boolean condition, not just a precomputed mask
+fast_turns = ahv[np.abs(ahv.values) > 100]
+```
+
+Reach for this instead of `nap.Ts(t=obj.t[mask])` / `nap.Tsd(t=obj.t[mask], d=obj.values[mask])`
+— the manual-rebuild version is redundant and easy to get subtly wrong (e.g. forgetting to also
+recompute `time_support`).
+
 ## count() - Bin and Count Events
 
 Counts events in time bins. Works on Ts, Tsd, TsGroup.
