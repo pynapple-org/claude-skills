@@ -45,17 +45,28 @@ nap.apply_bandpass_filter(
 `TypeError`. `filter_type` exists only on `get_filter_frequency_response` (where it is the
 band type, e.g. `'bandpass'`) and on `Tsd.decimate` (`'iir'`/`'fir'`).
 
-### Loading raw LFP from a flat binary file (.eeg / .dat)
+### Loading raw LFP (.eeg / .dat) with its channel layout
+
+Prefer `nap.EphysReader` over loading the binary by hand: it reads the session's layout file
+(e.g. the Neuroscope XML) for the channel count and sampling rate, and attaches per-channel
+metadata to the TsdFrame. Column `j` is raw channel `j`.
 
 ```python
-# int16 interleaved binary, e.g. a Neuroscope .eeg at 1250 Hz with 128 channels
-eeg = nap.load_binary_file("session.eeg", n_channels=128, frequency=1250)  # memory-mapped TsdFrame
-lfp = eeg[:, channel_list].restrict(sws_ep)  # select channels first, then restrict, before filtering
-ripple = nap.apply_bandpass_filter(lfp, (100, 200), fs=1250)
-power = np.mean(ripple.values ** 2, 0)        # band power per channel
+data = nap.EphysReader("path/to/session", format="NeuroScopeIO")
+eeg = data["session.eeg"]          # memory-mapped TsdFrame (n_samples, n_channels)
+eeg.metadata                       # Neuroscope: 'group' (anatomical shank), 'skip',
+                                   # 'anatomy' (rank of the channel in the XML anatomical order)
+
+# Channels of shank 0 in probe order (top to bottom), without skipped channels.
+# This is the channel order a Neuroscope spike-detection group uses, so a unit's
+# within-shank max-channel index maps directly into it.
+meta = eeg.metadata
+shank0 = meta[(meta.group == 0) & ~meta.skip].sort_values("anatomy").index.values
+lfp = eeg[:, shank0]
 ```
 
-`nap.load_eeg` still works but is deprecated in favor of `nap.load_binary_file` (same signature).
+`nap.load_binary_file(path, n_channels, frequency)` (successor of the deprecated `nap.load_eeg`)
+only memory-maps the file: no layout, no metadata.
 
 ### Analyzing Filter Response
 
@@ -124,10 +135,22 @@ plt.ylabel("Amplitude")
 ### Power Spectral Density
 
 ```python
+# Single epoch only: raises if the signal's time support (or ep) has more than one interval
 psd = nap.compute_power_spectral_density(signal, fs=1250)
 
-# Average PSD across a group
-mean_psd = nap.compute_mean_power_spectral_density(tsgroup, fs=1250)
+# Welch-style: average of Hamming-windowed FFTs over intervals of `interval_size` seconds.
+# Works on a Tsd or TsdFrame and on any number of epochs (e.g. all SWS bouts).
+mean_psd = nap.compute_mean_power_spectral_density(signal, interval_size=1.0, ep=sws_ep)
+# Returns a pandas DataFrame: index = frequency (Hz), one column per channel
+```
+
+Band power per channel, e.g. ripple band (100-200 Hz) on every channel of a shank during SWS.
+Prefer this over band-pass filtering and squaring the full signal: it is faster, it handles
+fragmented epochs without filter edge effects, and the frequency band is a simple slice:
+
+```python
+mean_psd = nap.compute_mean_power_spectral_density(lfp, 1.0, ep=sws_ep)
+ripple_power = mean_psd.loc[100:200].mean()   # pandas Series, one value per channel
 ```
 
 ## Phase Extraction (Hilbert Transform)
