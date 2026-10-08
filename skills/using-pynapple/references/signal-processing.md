@@ -60,14 +60,15 @@ power = np.mean(ripple.values ** 2, 0)        # band power per channel
 ### Analyzing Filter Response
 
 ```python
-freqs, response = nap.get_filter_frequency_response(
+response = nap.get_filter_frequency_response(
     cutoff=(6, 12),
     fs=1250,
     filter_type='bandpass',         # 'lowpass', 'highpass', 'bandpass' or 'bandstop'
     mode='butter',                  # 'butter' or 'sinc'
     order=4
 )
-plt.plot(freqs, response)
+# Returns a pandas Series: index = frequency (Hz), values = gain magnitude
+plt.plot(response)
 plt.xlabel("Frequency (Hz)")
 plt.ylabel("Magnitude")
 ```
