@@ -35,22 +35,40 @@ nap.apply_bandpass_filter(
     sig,                            # Tsd/TsdFrame/TsdTensor
     cutoff,                         # float or tuple of (low, high)
     fs=None,                        # sampling rate (auto from sig.rate if None)
-    order=4,                        # filter order
-    filter_type='butterworth',      # 'butterworth' or 'windowed-sinc'
-    transition_bandwidth=None,      # for windowed-sinc only
+    mode='butter',                  # 'butter' (Butterworth) or 'sinc' (windowed-sinc)
+    order=4,                        # Butterworth order (mode='butter' only)
+    transition_bandwidth=0.02,      # windowed-sinc only (fraction of 0..fs)
 )
 ```
+
+**Gotcha:** the keyword is `mode`, not `filter_type`. Passing `filter_type=` raises a
+`TypeError`. `filter_type` exists only on `get_filter_frequency_response` (where it is the
+band type, e.g. `'bandpass'`) and on `Tsd.decimate` (`'iir'`/`'fir'`).
+
+### Loading raw LFP from a flat binary file (.eeg / .dat)
+
+```python
+# int16 interleaved binary, e.g. a Neuroscope .eeg at 1250 Hz with 128 channels
+eeg = nap.load_binary_file("session.eeg", n_channels=128, frequency=1250)  # memory-mapped TsdFrame
+lfp = eeg[:, channel_list].restrict(sws_ep)  # select channels first, then restrict, before filtering
+ripple = nap.apply_bandpass_filter(lfp, (100, 200), fs=1250)
+power = np.mean(ripple.values ** 2, 0)        # band power per channel
+```
+
+`nap.load_eeg` still works but is deprecated in favor of `nap.load_binary_file` (same signature).
 
 ### Analyzing Filter Response
 
 ```python
-freqs, response = nap.get_filter_frequency_response(
+response = nap.get_filter_frequency_response(
     cutoff=(6, 12),
-    filter_type='butterworth',
     fs=1250,
+    filter_type='bandpass',         # 'lowpass', 'highpass', 'bandpass' or 'bandstop'
+    mode='butter',                  # 'butter' or 'sinc'
     order=4
 )
-plt.plot(freqs, response)
+# Returns a pandas Series: index = frequency (Hz), values = gain magnitude
+plt.plot(response)
 plt.xlabel("Frequency (Hz)")
 plt.ylabel("Magnitude")
 ```
