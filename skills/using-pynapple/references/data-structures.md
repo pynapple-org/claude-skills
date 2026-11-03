@@ -249,28 +249,28 @@ ep.condition = ["A", "B"]      # same as set_info() -- direct attribute assignme
                                 # here too, same as on TsGroup/TsdFrame
 ```
 
-### Idiom: fixed-length windows (samples for decoding, cross-validation folds)
+### Idiom: blocked cross-validation folds with `split`, signal chunks with `get`
 
-Prefer `split()` + metadata over hand-made time grids (`np.arange` per interval, then checking that each
-window fits inside one interval). Everything about a window lives on the IntervalSet and is filtered with it:
+Make the folds as IntervalSets and read the signal of each epoch with `get` (a view, no copy) instead of building
+index grids by hand:
 
 ```python
-windows = valid.split(0.01)                         # consecutive 10 ms windows inside the valid epochs
-windows.set_info(
-    center=windows.start + 0.005,
-    i0=np.searchsorted(signal.t, windows.start),    # first sample of each window in the signal array
-    fold=np.arange(len(windows)) * 5 // len(windows),  # 5 contiguous blocks (blocked cross-validation)
-)
-windows.set_info(angle=nap.Ts(windows.center.values).value_from(angle).values)
+pieces = valid.split(1.0)                                        # 1 s pieces of the valid epochs
+pieces.set_info(fold=np.arange(len(pieces)) * 5 // len(pieces))  # 5 consecutive blocks of equal valid time
+blocks = [pieces[pieces.fold == f].merge_close_intervals(1e-5) for f in range(5)]
 
-test = windows[windows.fold == 0]
-train = windows[(windows.end < test.start[0] - gap) | (windows.start > test.end[-1] + gap)]
-test = test[::10]                                   # IntervalSet supports slicing with a step
-train.i0.values, train.angle.values                 # metadata columns are pandas Series -> .values
+for f in range(5):
+    test_ep = blocks[f]
+    train_ep = valid.set_diff(nap.IntervalSet(test_ep.start[0] - gap, test_ep.end[-1] + gap))
+    for s, e in train_ep.values:
+        chunk = sig.get(s, e)    # TsdFrame of one interval : windows inside it never cross a gap
+        ...
 ```
 
-Note: `split` windows do not overlap. If overlapping windows are needed (e.g. one every 1 ms), build the grid
-by hand instead.
+Gotcha: do not split the full span `nap.IntervalSet(valid.start[0], valid.end[-1])` into 5 equal blocks of clock time:
+when the valid epochs are spread over a longer recording (e.g. tracked wake between sleep sessions), a block can fall
+entirely in a gap and the fold is empty. Splitting the valid epochs in small pieces and grouping them gives blocks of
+equal valid time. `merge_close_intervals(1e-5)` undoes the 1 us that `split` removes between contiguous pieces.
 
 ## Converting Between Types
 
