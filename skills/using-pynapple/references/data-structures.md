@@ -236,6 +236,10 @@ ep.merge_close_intervals(threshold=0.1)   # merge gaps < 0.1s
 
 # Splitting
 ep.split(interval_size=1.0)   # split into 1-second intervals
+# - each interval is cut separately : windows never cross a gap between intervals
+# - the leftover shorter than interval_size at the end of each interval is dropped,
+#   and intervals shorter than interval_size are skipped (no need for drop_short_intervals)
+# - 1 us is removed from the end of each window (intervals are strictly non-overlapping)
 
 # Metadata
 ep.tags                        # metadata column "tags" if exists
@@ -244,6 +248,29 @@ ep.set_info(condition=["A", "B"])
 ep.condition = ["A", "B"]      # same as set_info() -- direct attribute assignment works
                                 # here too, same as on TsGroup/TsdFrame
 ```
+
+### Idiom: fixed-length windows (samples for decoding, cross-validation folds)
+
+Prefer `split()` + metadata over hand-made time grids (`np.arange` per interval, then checking that each
+window fits inside one interval). Everything about a window lives on the IntervalSet and is filtered with it:
+
+```python
+windows = valid.split(0.01)                         # consecutive 10 ms windows inside the valid epochs
+windows.set_info(
+    center=windows.start + 0.005,
+    i0=np.searchsorted(signal.t, windows.start),    # first sample of each window in the signal array
+    fold=np.arange(len(windows)) * 5 // len(windows),  # 5 contiguous blocks (blocked cross-validation)
+)
+windows.set_info(angle=nap.Ts(windows.center.values).value_from(angle).values)
+
+test = windows[windows.fold == 0]
+train = windows[(windows.end < test.start[0] - gap) | (windows.start > test.end[-1] + gap)]
+test = test[::10]                                   # IntervalSet supports slicing with a step
+train.i0.values, train.angle.values                 # metadata columns are pandas Series -> .values
+```
+
+Note: `split` windows do not overlap. If overlapping windows are needed (e.g. one every 1 ms), build the grid
+by hand instead.
 
 ## Converting Between Types
 
