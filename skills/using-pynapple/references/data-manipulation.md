@@ -222,6 +222,25 @@ plt.plot(transients[:, 0:2].get(0, 100))
 pre_event = perievent.get(-0.2, 0)
 ```
 
+`get(start, end)` is also much **faster** than `restrict`: it finds the two edges with a
+binary search and returns a **view** (a slice of the original arrays, no copy), while
+`restrict` copies the data and rebuilds the time support. This matters most in loops over
+chunks of a large or memory-mapped signal (e.g. a `.dat` opened with `nap.EphysReader`),
+where `restrict` would copy every chunk before you even use it:
+
+```python
+dat = nap.EphysReader(path)["session.dat"]          # memmap TsdFrame, 20 kHz
+for c0, c1 in chunks:
+    chunk = dat.get(c0 - pad, c1 + pad)              # view, nothing read yet
+    chunk = nap.apply_highpass_filter(chunk * 1.0, 600, fs=20000)   # reads + filters this chunk only
+```
+
+Because it is a view, modifying the result in place (`segment.values[:] = 0`, `segment /= x`)
+modifies the original; call `.copy()` (or use `restrict`) if you need an independent object.
+Both include the edges (`start <= t <= end`). The result keeps the original `time_support`,
+so use `restrict` instead when later steps must see the new interval as the support (e.g.
+anything that loops over `time_support` or uses its length).
+
 ## threshold() - Find Epochs Above/Below Value
 
 Returns a Tsd restricted to times where values meet a threshold condition.
