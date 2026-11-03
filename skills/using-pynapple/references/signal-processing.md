@@ -219,6 +219,31 @@ converts the `start`/`end` index, not attached metadata like `peak_time` -- conv
 hand (`* 1000`) if you need everything in the same unit, e.g. writing a peak/start/stop event
 file.
 
+**Writing the steps out** (to inspect or tweak intermediate signals). This reproduces
+`detect_oscillatory_events` exactly (same events, bounds and peak times). Method walkthrough:
+https://pynapple.org/examples/tutorial_ripple_detection.html
+
+```python
+lfp = lfp.restrict(epochs)
+filtered = nap.apply_bandpass_filter(lfp, frequency_band)
+envelope = nap.compute_hilbert_envelope(filtered)
+window = np.ones(sliding_window_size) / sliding_window_size     # boxcar, in samples
+smoothed = envelope.convolve(window)
+zscored = (smoothed - smoothed.mean()) / smoothed.std()
+events = zscored.threshold(threshold_band[0], method="above") \
+                .threshold(threshold_band[1], method="below").time_support
+events = events.drop_short_intervals(duration_band[0])
+events = events.drop_long_intervals(duration_band[1])
+events = events.merge_close_intervals(min_interval)
+
+# Peak time = envelope maximum inside each event. Tsd has no idxmax(): use argmax on values.
+peak_time = []
+for start, end in events.values:
+    seg = envelope.get(start, end)
+    peak_time.append(seg.t[np.argmax(seg.values)])
+events.peak_time = peak_time        # attach as IntervalSet metadata
+```
+
 ## Peak Detection
 
 Find discrete peak events in a `Tsd` (e.g. turn-onset detection from an angular-velocity
