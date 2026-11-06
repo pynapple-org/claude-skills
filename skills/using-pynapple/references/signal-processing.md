@@ -28,6 +28,17 @@ filtered = nap.apply_highpass_filter(signal, cutoff=1, fs=1250)
 filtered = nap.apply_bandstop_filter(signal, cutoff=(59, 61), fs=1250)
 ```
 
+**Memory on large multi-channel signals.** With the default Butterworth filter, `apply_*_filter` on a whole `TsdFrame` peaks at about 5 times the size of the float64 signal, because `sosfiltfilt` works on all the columns at once (measured on 61 channels at 20 kHz). 55 million samples x 61 channels is 27 GB in float64, so a peak of about 136 GB. Each column is filtered independently, so filtering a few columns at a time gives identical values at about 1.5 times the size:
+
+```python
+data = dat.restrict(ep)                       # int16 TsdFrame
+out = np.empty(data.shape, np.float16)
+for i in range(0, data.shape[1], 8):          # 8 channels at a time
+    x = nap.apply_highpass_filter(data[:, i:i + 8] * 1.0, 600, fs=20000)
+    out[:, i:i + 8] = x.values
+sig = nap.TsdFrame(t=x.t, d=out, time_support=x.time_support)
+```
+
 ### Filter Parameters
 
 ```python
